@@ -1,5 +1,7 @@
 #https://www.kaggle.com/dmi3kno/newcarsalesnorway/data
 #Dicionario do dataset > 3) Summary stats for car sales in Norway by month - norwaynewcarsalesby_month.csv
+rm(list = ls())
+
 
 #Importando as bibliotecas
 library(readr)
@@ -7,6 +9,10 @@ library(dplyr)
 library(corrplot)
 library(forecast)
 library(moments)
+library(ggplot2)
+bibliotecas = c("forecast", "fpp2", "readxl")
+install.packages("ggplot2")
+install.packages(bibliotecas)
 
 #Importando o dataset
 norway_car_month <- read_csv("norway_new_car_sales_by_month.csv")
@@ -40,7 +46,6 @@ View(NAS[NAS>0])
 View(norway_car_month)
 
 
-
 ####################################################################################################################################
 #Plotagem graficos sobre Quantidade de carros vendidos por mes (Com um pseudo modelo linear)
 plot(norway_car_month$Quantity ~ norway_car_month$Month, xlab = "Mes", ylab = "Quantidade Vendida")
@@ -67,6 +72,12 @@ plot(norway_car_month$Quantity ~ norway_car_month$Quantity_Diesel, xlab="Quantid
 abline(lm(norway_car_month$Quantity ~ norway_car_month$Quantity_Diesel))
 lm(norway_car_month$Quantity ~ norway_car_month$Quantity_Diesel)
 
+
+#Diese CO2 por ano
+plot(norway_car_month$Quantity_Diesel ~ norway_car_month$Year, xlab="Ano", ylab = "Quantidade carros CO2 vendidos")
+abline(lm(norway_car_month$Quantity_Diesel ~ norway_car_month$Year))
+
+
 #Diesel CO2 por ano
 dus2 <- subset(norway_car_month,
                complete.cases(cbind(Year, Quantity)),
@@ -80,6 +91,11 @@ with(dus2, {
         lwd = 2,
         col = "#ff0050")
 })
+
+
+#Quantidade por ano
+plot(norway_car_month$Quantity ~ norway_car_month$Year, xlab="Ano", ylab = "Quantidade carros geral vendidos")
+abline(lm(norway_car_month$Quantity ~ norway_car_month$Year))
 
 
 #Quantidade por ano
@@ -99,7 +115,7 @@ with(dus2, {
 ####################################################################################################################################
 #Medidas de tendencia central quantidade de veiculos vendidos
 mean(norway_car_month$Quantity)
-View(max(table(norway_car_month$Quantity)))
+View(sort(table(norway_car_month$Quantity)))
 median(norway_car_month$Quantity)
 
 #Medidas de dispersão quantidade de veiculos vendidos
@@ -151,7 +167,7 @@ kurtosis(norway_car_month$Quantity)
 ####################################################################################################################################
 #Medidas de tendencia central quantidade de veiculos importados
 mean(norway_car_month$Import)
-View(max(table(norway_car_month$Import)))
+View(sort(table(norway_car_month$Import)))
 median(norway_car_month$Import)
 
 #Medidas de dispersao quantidade de veiculos importados
@@ -199,7 +215,7 @@ kurtosis(norway_car_month$Import)
 ####################################################################################################################################
 #Medidas de tendencia central quantidade de vendas da ford
 mean(norway_car_model$Quantity[norway_car_model$Make == 'Ford'])
-table(norway_car_model$Quantity[norway_car_model$Make == 'Ford'])
+View(sort(table(norway_car_model$Quantity[norway_car_model$Make == 'Ford'])))
 median(norway_car_model$Quantity[norway_car_model$Make == 'Ford'])
 
 
@@ -247,7 +263,7 @@ kurtosis(norway_car_model$Quantity[norway_car_model$Make == 'Ford'])
 ####################################################################################################################################
 #Medidas de tendencia central quantidade de vendas da toyota
 mean(norway_car_model$Quantity[norway_car_model$Make == 'Toyota'])
-View(max(table(norway_car_model$Quantity[norway_car_model$Make == 'Toyota'])))
+View(sort(table(norway_car_model$Quantity[norway_car_model$Make == 'Toyota'])))
 median(norway_car_model$Quantity[norway_car_model$Make == 'Toyota'])
 
 #Medidas de dispersao quantidade de vendas da ford
@@ -325,9 +341,9 @@ View(cor1)
 ####################################################################################################################################
 #Serie Temporal (QUANTIDADE DE CARROS VENDIDOS NOS ANOS)
 vetor <- as.numeric(norway_car_month$Quantity)
-z <- ts(vetor, frequency = 12, start = c(2007,1), end = c(2016,12))
+z <- ts(data = norway_car_month$Quantity, frequency = 12, start = c(2007,1), end = c(2017,1))
 
-ts.plot(z)
+ts.plot(z, ylab = "Quantidade vendida", xlab = "Ano")
 seasonplot(z, col = rainbow(12), border = c("royalblue"), year.labels = TRUE, Type = "o", pch= 16, main = "Quantidade de vendas Mês e Ano")
 #Nessa serie temporal podemos ver o reflexo da crise de 2008.
 #O grafico começa descendo na epoca da crise (SET 2008)
@@ -337,11 +353,47 @@ seasonplot(z, col = rainbow(12), border = c("royalblue"), year.labels = TRUE, Ty
 
 ####################################################################################################################################
 #Previsao com Holt-Winters com Tendencia e Ajuste sazonal
+#Pior acuracia
 ajuste_HW_CT_CS <- HoltWinters(z)
 ajuste_HW_CT_CS
 plot(ajuste_HW_CT_CS)
 
 previsao <- forecast(ajuste_HW_CT_CS, h=36)
 plot(previsao, main = "Previsão Venda de Carros Noruega 2017 - 2019", xlab = "Anos", ylab = "Quantidade de Carros Vendidos")
-previsao
+accuracy(previsao)
+
+######################################################################################################################################
+#Previsao com Holt Winters aditivo 
+#Melhor acuracia - aditivo
+previsao_anti_diab_aditivo = hw(z, seasonal = "additive", PI= F, h=36)
+previsao_anti_diab_multiplicativo = hw(z, seasonal = "multiplicative", PI = F, h=36)
+autoplot(z) + ggtitle("Previsão Venda de Carros Noruega 2017 - 2019") + xlab("Ano") + ylab("Quantidade de Carros Vendidos") +
+  autolayer(previsao_anti_diab_aditivo, series="HW Add.") + 
+  autolayer(previsao_anti_diab_multiplicativo, series="HW Mult.")
+
+forecast(previsao_anti_diab_aditivo)
+forecast(previsao_anti_diab_multiplicativo)
+
+View(accuracy(previsao_anti_diab_aditivo))
+View(accuracy(previsao_anti_diab_multiplicativo))
+
+#####################################################################################################################################
+#Previsao com Arima
+#boa acuracia
+modelo_arima = forecast::auto.arima(z)
+plot(forecast(modelo_arima), main = "Previsão Venda de Carros Noruega 2017 - 2018", ylab = "Quantidade de Carros vendidos", xlab = "Ano")
+
+forecast(modelo_arima)
+View(accuracy(modelo_arima))
+
+#####################################################################################################################################
+#Previsao com Naive
+naive_previsao = naive(z, h=36)
+autoplot(z, series="Dados") + ggtitle("Previsão Venda de Carros Noruega 2017 - 2020") + xlab("Ano") + ylab("Quantidade de Carros Vendidos") +
+  autolayer(fitted(naive_previsao), series = "Previsao") 
+
+forecast(naive_previsao)
+View(accuracy(naive_previsao))
+######################################################################################################################################
+
 
